@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Game with Socket.io</title>
+    <style>
+        #gameArea {
+            width: 100%;
+            height: 600px;
+            border: 1px solid black;
+            position: relative;
+            overflow: hidden;
+        }
+     
+        .wall {
+            position: absolute;
+            width: 20px;
+            background-color: #888;
+        
+        }
+        .box1 {
+    position: absolute;
+     /* ou qualquer valor de x para sua plataforma */
+    bottom: 0px; /* ou qualquer valor de y para sua plataforma */
+    width: 100px;
+    height: 10px;
+    background-color: #000; /* ou qualquer cor que você quiser */
+}
+.boxkill {
+    position: absolute;
+     /* ou qualquer valor de x para sua plataforma */
+    bottom: 0px; /* ou qualquer valor de y para sua plataforma */
+    width: 100px;
+    height: 10px;
+  /* ou qualquer cor que você quiser */
+}
+
+
+        #camera{
+            bottom:0px;
+            position:absolute;
+            margin-left: 50%;
+        }
+        @keyframes batidaAsa {
+        0%, 100% {
+           
+        }
+        50% {
+           
+        }
+        }
+
+        @keyframes pernaD {
+        0% {
+            transform: rotate(-30deg);
+        }
+        40% {
+            transform: rotate(100deg);
+        }
+        60% {
+            transform: rotate(100deg);
+        }
+        100% {
+            transform: rotate(-30deg);
+        }
+        }
+
+        @keyframes pernaE {
+        0% {
+            transform: rotate(40deg);
+        }
+        40% {
+        transform: rotate(-74deg);
+        margin-left: 41px;
+        }
+
+        60% {
+        transform: rotate(-74deg);
+        margin-left: 41px;
+        }
+
+        
+        100% {
+            transform: rotate(40deg);
+        }
+        }
+
+        @keyframes corpo {
+        0% {
+            transform: scaleY(1);
+        }
+        50% {
+           
+            margin-bottom: 10px;
+        }        
+        100% {
+            transform: scaleY(1);
+        }
+        }
+
+        .pernaE {
+        transform-origin: 0% 0%;  /* Ajuste conforme necessário */
+        }
+        .pernaD {
+            transform-origin: 0% 0%;  /* Ajuste conforme necessário */
+        }
+   
+
+
+        .baterAsasE {
+            margin-top: 30px!important;
+            margin-left: 48px!important;
+            transform: rotate(300deg)!important;
+        }
+        .baterAsasD {
+            margin-top: 20px!important;
+            margin-left: 48px!important;
+            transform: rotate(260deg)!important;
+        }
+        .correndoE{
+            animation: pernaE 0.35s infinite;
+           
+        }
+        .correndoD{
+            animation: pernaD 0.35s infinite;
+           
+        }
+        .corpocorrendo{
+            animation: corpo 0.4s infinite;
+
+        }
+
+
+
+    </style>
+</head>
+<body>
+  
+    <div id="gameArea">
+        <!-- Wrapping div for players and walls -->
+        <div id="camera">
+            <div class="box1" style="height:5;left: 0px;width: 600px;"></div>
+            <div class="box1" style="height:5;left: 100px;bottom:200px"></div>
+            <div class="box1" style="height:5;left: 600px;bottom:100px"></div>
+            <div class="box1" style="height:5;left: 900px;bottom:200px"></div>
+            <div class="box1" style="height:5;left: 900px;width: 600px;"></div>
+            <div class="boxkill" style="height:5;left: 1500px;width: 200;background-color: rgb(0, 110, 255);"></div>
+            
+        </div>
+    </div>
+    
+    <!-- Include the Socket.io library -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+
+            //const socket = io.connect('http://localhost:8000');
+            const socket = io.connect('http://localhost:8000');
+
+  
+          socket.emit('joinRoom');
+
+
+/*socket.on('roomStatus', (status) => {
+    if (status === 'entered') {
+        console.log('Entrou na sala!');
+    } else {
+        window.location.href = '/lobby.html';
+    }
+});*/
+
+let min = 0;
+let max = 300;
+let randomInt = Math.floor(Math.random() * (max - min + 1) + min);
+
+            let moveDirection = 0;  // -1 for left, 1 for right, 0 for stopped
+           
+            
+            const gameArea = document.getElementById("camera");
+            const players = {};
+
+            let localPlayerId = randomInt;
+            let localPlayerImagea = "http://localhost:8000/skins/cabeca.png" //localStorage.getItem("cabeca");
+            let localPlayerImageb = "http://localhost:8000/skins/corpo.png"//localStorage.getItem("corpo");
+            let localPlayerImagec = "http://localhost:8000/skins/asa.png"//localStorage.getItem("corpo");
+            let localPlayerImaged = "http://localhost:8000/skins/perna.png"//localStorage.getItem("corpo");
+            //let localPlayerImagec = "http://localhost:8000/skins/beisebol.png"//localStorage.getItem("corpo");
+//aqui faço um random 
+//finalizo o random
+
+            let localPlayer = {
+                saude : 100,
+                id: localPlayerId,
+                x: randomInt,
+                y: 500,
+                velocityY: 0,
+                isJumping: true,
+                width: 50,
+                side: 1,
+                cabeca: localPlayerImagea,
+                corpo: localPlayerImageb,
+                asa: localPlayerImagec,
+                perna: localPlayerImaged,
+                encostando : false,
+                walking : false
+              
+            };
+
+
+            function createPlayerElement(playerData) {
+    // Verificar se já existe um elemento com o mesmo ID
+    const existingElement = document.getElementById(playerData.id);
+    if (existingElement) {
+        console.error("Element with the same ID already exists!");
+        return existingElement; // Retornar o elemento existente para evitar duplicação
+    }
+
+    const div = document.createElement('div');
+    const headImg = document.createElement('img');
+    const bodyImg = document.createElement('img');
+    const asaEImg = document.createElement('img');
+    const asaDImg = document.createElement('img');
+    const pernaEImg = document.createElement('img');
+    const pernaDImg = document.createElement('img');
+    const raycast= document.createElement('div');
+
+    headImg.src = playerData.cabeca;
+    headImg.style.width = "60px";
+    headImg.style.zIndex = "1";
+    headImg.style.top = "-14px";
+    headImg.style.position = "relative";
+    
+    bodyImg.src = playerData.corpo;
+    bodyImg.style.width = "60px";
+    bodyImg.style.marginTop ="-27px";
+    bodyImg.style.marginBottom ="16px";
+    bodyImg.className = "corpo";
+    div.style.position = "absolute";
+
+    asaEImg.src = playerData.asa;
+    asaEImg.style.width = "23px";
+    asaEImg.style.marginTop = "45px";
+    asaEImg.style.marginLeft = "39px";
+    asaEImg.style.transform = "rotate(347deg)";
+    asaEImg.style.position = "absolute";
+    asaEImg.className = "asaE";
+
+    asaDImg.src = playerData.asa;
+    asaDImg.style.width = "23px";
+    asaDImg.style.marginTop = "45px";
+    asaDImg.style.marginLeft = "39px";
+    asaDImg.style.transform = "rotate(347deg)";
+    asaDImg.style.position = "absolute";
+    asaDImg.style.zIndex = "-2";
+    asaDImg.className ="asaD";
+
+    pernaEImg.src = playerData.perna;
+    pernaEImg.style.width = "14px";
+    pernaEImg.style.marginTop = "-30px";
+    pernaEImg.style.marginLeft = "11px";
+    pernaEImg.style.zIndex ="-1";
+    pernaEImg.className ="pernaE";
+    
+
+
+    pernaDImg.src = playerData.perna;
+    pernaDImg.style.width = "14px";
+    pernaDImg.style.marginTop = "-49px";
+    pernaDImg.style.marginLeft = "31px";
+    pernaDImg.style.zIndex ="-1";
+    pernaDImg.className ="pernaD";
+    
+    if (localPlayerId == playerData.id) {
+        div.style.zIndex = "10";
+    }
+    div.style.display = "flex";
+    div.style.flexDirection = "column";
+    div.id = playerData.id;
+
+  
+
+    raycast.style.backgroundColor = "red";
+    raycast.style.height = "10px";
+    raycast.style.width = "50px";
+    raycast.style.backgroundColor = "unset";
+    raycast.className = "jogador" + playerData.id;
+
+
+
+    div.appendChild(headImg);
+    div.appendChild(bodyImg);
+    div.appendChild(asaEImg);
+    div.appendChild(asaDImg);
+    div.appendChild(pernaEImg);
+    div.appendChild(pernaDImg);
+    div.appendChild(raycast);
+
+
+    
+    //div.appendChild(heath);
+    gameArea.appendChild(div);
+    return div;
+}
+
+           const cameraDiv = document.getElementById("camera");
+            function moveCamera() {
+                // Ensure player remains in the center of the screen
+                cameraDiv.style.left = (gameArea.offsetWidth / 2 - localPlayer.x - 30) + "px";
+                cameraDiv.style.bottom = (gameArea.offsetWidth / 2 - localPlayer.y + 150) + "px";
+            }
+
+            function updatePlayerElement(playerData) {
+                const playerDiv = document.getElementById(playerData.id);
+                let childElement = playerDiv.querySelector('img');
+
+                playerDiv.style.left = playerData.x + "px";
+                playerDiv.style.bottom = playerData.y + "px";
+             
+                if (playerData.side === -1) {
+                    playerDiv.style.transform = "scaleX(1)";  // Original direction
+                   
+
+                } else if (playerData.side === 1) {
+                    playerDiv.style.transform = "scaleX(-1)";  // Inverted direction
+                }
+               
+               console.log(localPlayer.walking)
+
+                if (localPlayerId === playerData.id) {
+              
+                    moveCamera();
+                }
+
+             
+            }
+
+            function handlePlayerData(playerId, playerData) {
+                if (!players[playerId]) {
+                    players[playerId] = createPlayerElement(playerData);
+                }
+                updatePlayerElement(playerData);
+
+
+            }
+       
+           socket.on('playersUpdate', function (data) {
+            for (const playerId in players) {
+    if (!data[playerId]) {
+        // Se os dados do jogador não estão mais nos dados atualizados, remova o elemento div
+        const playerDiv = document.getElementById(playerId);
+        if (playerDiv) {
+            gameArea.removeChild(playerDiv);
+        }
+        delete players[playerId];
+    }
+}
+
+
+        for (const playerId in data) {
+     
+            handlePlayerData(playerId, data[playerId]);
+        }
+    }
+    );
+
+
+
+
+
+         
+//let doublejump = 0;
+            document.addEventListener("keydown", function(event) {
+                switch(event.key) {
+                 case "a":
+                 break
+                    case "ArrowLeft":
+                 
+                        moveDirection = -1;
+                        localPlayer.side = -1;
+                        toggleWingAnimation(localPlayer.id, true);
+                        socket.emit('playerMoving', localPlayer.id);
+
+                                      
+                        break;
+                    case "ArrowRight":
+                        moveDirection = 1;
+                        localPlayer.side = 1; 
+                        toggleWingAnimation(localPlayer.id, true);
+                        socket.emit('playerMoving', localPlayer.id);
+                        break;
+                    case " ":
+                        if (!localPlayer.isJumping ) {
+                            localPlayer.encostando = true; 
+                                              
+                          //  doublejump ++;
+                            localPlayer.isJumping = true;
+                            localPlayer.velocityY = 25;
+                          
+                        }
+                        break;
+                        
+                
+            }
+            });
+
+            document.addEventListener("keyup", function(event) {
+               
+                if(event.key === "ArrowLeft" && moveDirection === -1 ) {
+                    moveDirection = 0;
+                    toggleWingAnimation(localPlayer.id, false);
+                    socket.emit('playerStoppedMoving', localPlayer.id);
+                } else if(event.key === "ArrowRight" && moveDirection === 1 ) {
+                    moveDirection = 0;
+                    toggleWingAnimation(localPlayer.id, false);
+                    socket.emit('playerStoppedMoving', localPlayer.id);
+                  
+                  
+                }
+            });
+
+
+            function toggleWingAnimation(playerId, startAnimation) {
+    var playerDiv = document.getElementById(playerId);
+    if (playerDiv) {
+        var asaEsquerda = playerDiv.querySelector('.asaE');
+        var asaDireita = playerDiv.querySelector('.asaD');
+        var pernaEsquerda = playerDiv.querySelector('.pernaE');
+        var pernaDireita = playerDiv.querySelector('.pernaD');
+        var corpo = playerDiv.querySelector('.corpo');
+        if (asaEsquerda && asaDireita) {
+            if (startAnimation) {
+                asaEsquerda.classList.add('baterAsasE');
+                asaDireita.classList.add('baterAsasD');
+                pernaEsquerda.classList.add('correndoE');
+                pernaDireita.classList.add('correndoD');
+                corpo.classList.add('corpocorrendo');
+            } else {
+                asaEsquerda.classList.remove('baterAsasE');
+                asaDireita.classList.remove('baterAsasD');
+                pernaEsquerda.classList.remove('correndoE');
+                pernaDireita.classList.remove('correndoD');
+                corpo.classList.remove('corpocorrendo');
+            }
+        }
+    }
+}
+
+            const GRAVITY = 1;
+
+
+
+            function gameLoop() {
+
+
+
+    // Horizontal movement
+    if (moveDirection !== 0) {
+        localPlayer.x += moveDirection * 8;
+    } 
+
+    
+
+    // Gravity affects vertical movement
+    localPlayer.velocityY -= GRAVITY;
+    localPlayer.y += localPlayer.velocityY;
+   
+   
+    function getBoundingClientRect(element) {
+    return element.getBoundingClientRect();
+}
+
+function isColliding(boxA, boxB) {
+    return !(boxA.right < boxB.left || 
+            boxA.left > boxB.right || 
+            boxA.bottom < boxB.top || 
+            boxA.top > boxB.bottom);
+}
+
+const divJogador = document.querySelector('.jogador'+localPlayer.id);
+
+if (divJogador) {
+    const boxJogador = getBoundingClientRect(divJogador);
+
+    // Seleciona todos os elementos com a classe 'box1'
+    const boxes = document.querySelectorAll('.box1');
+    const boxeskill = document.querySelectorAll('.boxkill');
+
+    let colliding = false;
+     let ydoplayer;
+    // Verifique a colisão para cada caixa individualmente
+    boxes.forEach((boxElement) => {
+        const box = getBoundingClientRect(boxElement);
+        if (isColliding(boxJogador, box)) {
+            colliding = true;
+            const boxStyles = window.getComputedStyle(boxElement);
+              const estilo = boxStyles.getPropertyValue('bottom');
+
+
+            ydoplayer = parseInt(estilo,10);
+          //  console.log(ydoplayer)
+       
+        }
+    });
+    boxeskill.forEach((boxElement) => {
+        const boxkill = getBoundingClientRect(boxElement);
+        if (isColliding(boxJogador, boxkill)) {
+           localPlayer.saude -= 5;
+      
+          
+          
+
+           console.log(localPlayer.saude)
+        
+        //socket.emit('playerWon', localPlayer.id);  // Notify the server that the player has won
+  
+       
+        }
+    });
+
+
+    //console.log(localPlayer.velocityY)
+    if (colliding) { // Aqui você pode ver o valor de bottom da caixa que está colidindo
+
+        if (!localPlayer.encostando) {
+        if(localPlayer.velocityY <=  0){
+             localPlayer.y = ydoplayer ;
+            localPlayer.isJumping = false;
+            localPlayer.velocityY = 0;
+          }
+        }
+    } else {
+        localPlayer.isJumping = true;
+        localPlayer.encostando = false;
+        
+    }
+}
+if (moveDirection !== 0 || localPlayer.isJumping) {
+        socket.emit('updatePlayer', localPlayer); 
+    }
+if(localPlayer.y <-400 ){
+    localPlayer.y = 900;
+    localPlayer.x = 0;
+    localPlayer.velocityY =0;
+}
+if(localPlayer.saude <=0){
+    localPlayer.y = 900;
+    localPlayer.x = -0;
+    localPlayer.saude = 100;    
+    localPlayer.velocityY =0;
+    socket.emit('updatePlayer', localPlayer); 
+}
+//health
+    requestAnimationFrame(gameLoop);
+}
+
+
+ gameLoop();
+
+
+
+
+ socket.on('otherPlayerMoving', function(playerId) {
+    console.log('jogador' + playerId)
+    if (playerId === localPlayer.id) return; // Ignorar se o jogador for o local
+    var playerDiv = document.getElementById(playerId);
+    if (playerDiv) {
+        var asaEsquerda = playerDiv.querySelector('.asaE');
+        var asaDireita = playerDiv.querySelector('.asaD');
+        var pernaEsquerda = playerDiv.querySelector('.pernaE');
+        var pernaDireita = playerDiv.querySelector('.pernaD');
+        var corpo = playerDiv.querySelector('.corpo');
+
+        if (asaEsquerda && asaDireita) {
+                asaEsquerda.classList.add('baterAsasE');
+                asaDireita.classList.add('baterAsasD');
+                pernaEsquerda.classList.add('correndoE');
+                pernaDireita.classList.add('correndoD');
+                corpo.classList.add('corpocorrendo');
+        }
+    }
+});
+
+socket.on('otherPlayerStoppedMoving', function(playerId) {
+    if (playerId === localPlayer.id) return; // Ignorar se o jogador for o local
+    var playerDiv = document.getElementById(playerId);
+    if (playerDiv) {
+        var asaEsquerda = playerDiv.querySelector('.asaE');
+        var asaDireita = playerDiv.querySelector('.asaD');
+        var pernaEsquerda = playerDiv.querySelector('.pernaE');
+        var pernaDireita = playerDiv.querySelector('.pernaD');
+        var corpo = playerDiv.querySelector('.corpo');
+        if (asaEsquerda && asaDireita) {
+            asaEsquerda.classList.remove('baterAsasE');
+                asaDireita.classList.remove('baterAsasD');
+                pernaEsquerda.classList.remove('correndoE');
+                pernaDireita.classList.remove('correndoD');
+                corpo.classList.remove('corpocorrendo');
+         //   asaDireita.classList.remove('baterAsas');
+        }
+    }
+});
+
+
+
+
+
+
+    </script>
+
+</body>
+</html>
